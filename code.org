@@ -1,0 +1,305 @@
+* Code
+** Getter Boilerplate
+    #+NAME: getToken
+    #+begin_src sh :var hostname=getLoginURL clientid=getCAKey secret=getCASecret username=getSFDCUserName password=getSFDCPassword :result silent
+  curl $hostname/services/oauth2/token -d client_id=$clientid -d client_secret=$secret -d username=$username -d password=$password -d grant_type=password | jq .access_token
+    #+end_src
+
+    #+NAME: getTokenAsNeeded
+    #+begin_src emacs-lisp 
+(if(boundp 'siq.token)
+	  (message sid.token)
+	  (shell-command "echo request token"))
+    #+end_src
+    
+    #+NAME: getHostURL
+    #+begin_src emacs-lisp :result silent 
+      sfdc.url
+    #+end_src
+
+    #+NAME: getOrgId
+    #+begin_src emacs-lisp :result silent 
+      sfdc.orgid
+    #+end_src
+
+    #+NAME: getEmail
+    #+begin_src emacs-lisp :result silent 
+      extern.email
+    #+end_src
+
+    #+NAME: getSIQToken
+    #+begin_src emacs-lisp :result silent 
+      siq.token
+    #+end_src
+
+    #+NAME: getSFDCUserId18
+    #+begin_src emacs-lisp :result silent 
+      sfdc.userid18
+    #+end_src
+
+    #+NAME: getCAKey
+    #+begin_src emacs-lisp :result silent 
+      sfdc.cakey
+    #+end_src
+
+    #+NAME: getCASecret
+    #+begin_src emacs-lisp :result silent 
+      sfdc.casecret
+    #+end_src
+
+    #+NAME: getLoginURL
+    #+begin_src emacs-lisp :result silent 
+      sfdc.loginurl
+    #+end_src
+
+    #+NAME: getSFDCUserName
+    #+begin_src emacs-lisp :result silent 
+      sfdc.username
+    #+end_src
+
+    #+NAME: getSFDCPassword
+    #+begin_src emacs-lisp :result silent 
+      sfdc.password
+    #+end_src
+    
+** Obtain Service URL
+   #+NAME: GetInstanceURL
+   #+BEGIN_SRC sh :noweb yes :dir ~/tmp :var host=getHostURL token=getToken :result silent 
+     SERVICEURL=$(sed -e 's/^"//' -e 's/"$//' <<<`curl -k $host/services/data/ -H "Authorization: Bearer "$token"" -H "X-PrettyPrint:1" | jq '.[-1].url'`)
+     echo $host$SERVICEURL
+   #+END_SRC
+
+** Get all Contacts
+#+BEGIN_SRC bash :noweb yes :dir ~/tmp :results drawer :var host=GetInstanceURL token=getToken 
+  
+                    query=$(cat << END
+select Id, IsDeleted, MasterRecordId, AccountId, LastName, FirstName, Salutation, Name, OtherStreet, OtherCity, OtherState, OtherPostalCode, OtherCountry, OtherLatitude, OtherLongitude, OtherGeocodeAccuracy, OtherAddress, MailingStreet, MailingCity, MailingState, MailingPostalCode, MailingCountry, MailingLatitude, MailingLongitude, MailingGeocodeAccuracy, MailingAddress, Phone, Fax, MobilePhone, HomePhone, OtherPhone, AssistantPhone, ReportsToId, Email, Title, Department, AssistantName, LeadSource, Birthdate, Description, OwnerId, CreatedDate, CreatedById, LastModifiedDate, LastModifiedById, SystemModstamp, LastActivityDate, LastCURequestDate, LastCUUpdateDate, LastViewedDate, LastReferencedDate, EmailBouncedReason, EmailBouncedDate, IsEmailBounced, PhotoUrl, Jigsaw, JigsawContactId, IndividualId from contact
+  
+                    END)
+
+     curl -k -G \
+          -H "X-PrettyPrint:1" \
+          $host/query \
+          -H "Authorization: Bearer "$token"" \
+          --data-urlencode "q=$query" | jq  --compact-output '.records[]'
+#+end_src
+
+** Get Event
+   #+BEGIN_SRC bash :noweb yes :dir ~/tmp :results drawer :var EventId="00UXXXXXXXXXXX" host=GetInstanceURL token=getToken
+     query=$(cat << END
+             SELECT ActivityDateTime,ActivityRecurrence2Id,CreatedDate,DurationInMinutes,EndDate,GroupEventType,Id,IsChild,Location,OwnerId,Subject FROM Event WHERE Id = '$EventId'
+             )
+
+     curl -k -G \
+          -H "X-PrettyPrint:1" \
+          $host/query \
+          -H "Authorization: Bearer "$token"" \
+          --data-urlencode "q=$query" 
+   #+END_SRC
+
+** Get Event By Subject
+   #+BEGIN_SRC bash :noweb yes :dir ~/tmp :results drawer :var Subject="PLACEHOLDER"  host=GetInstanceURLtoken=getToken 
+     declare query=\
+             "SELECT ActivityDateTime,ActivityRecurrence2Id,CreatedDate,DurationInMinutes,EndDate,GroupEventType,Id,IsChild,Location,OwnerId,Subject FROM Event WHERE Subject = '$Subject'" 
+
+     curl -k -G \
+          -H "X-PrettyPrint:1" \
+          $host/query \
+          -H "Authorization: Bearer "$token"" \
+          --data-urlencode "q=$query" 
+   #+END_SRC
+
+** Get All Event ID's for a User
+   #+NAME: AllEventIds
+   #+BEGIN_SRC bash :noweb yes :dir ~/tmp :results drawer :var UserId="005xxXXXXXXXX" host=GetInstanceURL token=getToken 
+     declare query=\
+             "SELECT Id FROM Event WHERE OwnerId = '$UserId'" 
+
+     curl -k -G \
+          -H "X-PrettyPrint:1" \
+          $host/query \
+          -H "Authorization: Bearer "$token"" \
+          --data-urlencode "q=$query" | jq  --compact-output '.records[].Id'
+   #+END_SRC
+
+   
+** Describe SObject
+   #+PROPERTY: header-args 
+   #+BEGIN_SRC bash :noweb yes :dir ~/tmp :results drawer :var host=GetInstanceURL sobject="user"  token=getToken
+     curl -G -k \
+          -H "X-PrettyPrint:1" \
+          $host/sobjects/$sobject/describe \
+           -H "Authorization: Bearer "$token"" | jq '.fields[].name'
+   #+END_SRC
+   
+** Get All Users
+   #+begin_src bash :noweb yes :dir ~/tmp :results drawer :var token=getToken 
+     declare query=\
+             "SELECT Username,Email,Id FROM User"
+
+     curl -k -G \
+          -H "X-PrettyPrint:1" \
+          "$host/query" \
+          -H "Authorization: Bearer "$token"" \
+          --data-urlencode "q=$query" | jq  --compact-output '.records[] | "\(.Id) \(.Username) \(.Email)"'
+   #+end_src
+
+
+#+begin_src emacs-lisp :results silent
+  (request (concatenate 'string sfdc.loginurl "/services/oauth2/token")
+    :type "POST"
+    :params `(("client_id" . ,sfdc.cakey) ("client_secret" . ,sfdc.casecret) ("username" . ,sfdc.username) ("password" . ,sfdc.password) (grant_type . "password") )
+    :parser 'json-read
+    :sync t
+    :success (cl-function
+              (lambda (&key data &allow-other-keys)
+                (setq sfdc.token (assoc-default 'access_token data)))))
+
+#+end_src
+
+#+begin_src emacs-lisp
+  (request "https://jsonplaceholder.typicode.com/todos/1"
+    :parser 'json-read
+    :success
+      (cl-function (lambda (&rest args &key data &allow-other-keys)
+                (message "Got error: %S" data)(debug)))
+    :sync t)
+#+end_src
+
+#+begin_src emacs-lisp
+(request "http://httpbin.org/status/418"
+  ;; "http://httpbin.org/status/200"  ;; success callback will be called.
+  ;; "http://httpbin.org/status/400"  ;; you will see "Got 400."
+  :parser 'buffer-string
+  :success
+  (cl-function (lambda (&key data &allow-other-keys)
+                 (when data
+                   (with-current-buffer (get-buffer-create "*request demo*")
+                     (erase-buffer)
+                     (insert data)
+                     (pop-to-buffer (current-buffer))))))
+  :error
+  (cl-function (lambda (&rest args &key error-thrown &allow-other-keys)
+                 (message "Got error: %S" error-thrown)))
+  :complete (lambda (&rest _) (message "Finished!"))
+  :status-code '((400 . (lambda (&rest _) (message "Got 400.")))
+                 (418 . (lambda (&rest _) (message "Got 418.")))))  
+#+end_src
+
+#+begin_src emacs-lisp
+  (defun sfdc-query(query)
+  (setq sfdc.auth (concatenate 'string "Bearer " sfdc.token ))
+      (request-response-data (request (concatenate 'string sfdc.endpoint "/query")
+        :type "GET"
+        :headers `( ("Content-Type" . "application/json") (grant_type . "password") ("Authorization" . ,sfdc.auth ) )
+        :params `(("q" . ,query) )
+        :parser 'json-read
+        :sync t
+        :success (cl-function
+                  (lambda (&key data &allow-other-keys)
+                  (print (assoc-default `records data))))
+  :status-code '((401 . (lambda (&rest _) (refresh-token)))))))
+#+end_src
+
+#+begin_src emacs-lisp
+(request
+ "http://api.stackexchange.com/2.1/sites"
+ :parser 'json-read
+ :params '((page . "2") (page_size . "25"))
+ :success (lambda (&rest args) (princ (plist-get args :data))))
+#+end_src
+
+#+begin_src emacs-lisp
+  (defun refresh-token ()
+    "Obtain a current session id token"
+    (request (concatenate 'string sfdc.loginurl "/services/oauth2/token")
+      :type "POST"
+      :params `(("client_id" . ,sfdc.cakey) ("client_secret" . ,sfdc.casecret) ("username" . ,sfdc.username) ("password" . ,sfdc.password) (grant_type . "password") )
+      :parser 'json-read
+      :sync t
+      :success (cl-function
+                (lambda (&key data &allow-other-keys)
+                  (setq sfdc.token (assoc-default 'access_token data)
+
+  )))))
+#+end_src
+
+
+#+begin_src emacs-lisp
+  (sfdc-query "select id from user")
+#+end_src
+
+If a session id is present, use it. Otherwise try and request a token
+#+begin_src emacs-lisp
+
+ (defun obtain-token ()
+(if (boundp `sfdc.token) 
+    (print sfdc.token)
+  (refresh-token)
+))
+#+end_src
+
+* YAML
+#+begin_src sh :results verbatim
+yq e -n '.systems.name = "cat", .systems.type = "sfdc"'
+#+end_src
+
+#+begin_src sh :results verbatim
+yq eval -P --null-input '.systems |= .systems.a.b = "cat" | .x = "frog"'
+#+end_src
+
+
+#+begin_src emacs-lisp :results verbatim :wrap src json 
+  (request (concatenate 'string sfdc.loginurl "/services/data")
+  :parser 'json-read
+  :sync t
+  :success (cl-function
+  (lambda (&key data &allow-other-keys)
+  ( setq sfdc.endpoint (concatenate 'string sfdc.loginurl (cdr (assoc 'url (elt (reverse data) 0 ))))))))
+
+
+  (request (concatenate 'string sfdc.loginurl "/services/oauth2/token")
+  :type "POST"
+  :params `(("client_id" . ,sfdc.cakey) ("client_secret" . ,sfdc.casecret) ("username" . ,sfdc.username) ("password" . ,sfdc.password) (grant_type . "password") )
+  :parser 'json-read
+  :sync t
+  :success (cl-function
+  (lambda (&key data &allow-other-keys)
+  (setq sfdc.token (assoc-default 'access_token data)))))
+
+
+  (defun sfdc-query(query)
+  (setq sfdc.auth (concatenate 'string "Bearer " sfdc.token ))
+
+  (request-response-data (request (concatenate 'string sfdc.endpoint "/query")
+  :type "GET"
+  :headers `( ("Content-Type" . "application/json") (grant_type . "password") ("Authorization" . ,sfdc.auth ) )
+  :params `(("q" . ,query) )
+  :parser 'json-read
+  :sync t
+  :success (cl-function
+  (lambda (&key data &allow-other-keys)
+  (print (assoc-default `records data))))
+  :status-code '((401 . (lambda (&rest _) (refresh-token)))))))
+
+  (sfdc-query "select id from contact limit 10")
+#+end_src
+
+
+* Login URL (Any restrictions on steam with GetLoginPrevention??)
+#+NAME: credentialedLogin
+#+begin_src sh :var hostname=getLoginURL username=getSFDCUserName password=getSFDCPassword :result silent
+curl -d un=$username -d pw=$password -X POST $hostname -si | rg -oP 'Location: \K.*'
+#+end_src
+
+(defun sugestion-for (targ)
+  (request
+   (format "https://api.datamuse.com/sug?s=%s" targ)
+   :parser 'json-read
+   :success (function*
+             (lambda (&amp;key data &amp;allow-other-keys)
+               (let* ((candidates
+                       (mapcar (lambda (i)
+                                 (cons (cdr (car i)) nil)) data)))
+                 (insert (format "\n =&gt; %s "
+                                 candidates)))))))

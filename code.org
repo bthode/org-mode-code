@@ -239,16 +239,6 @@ If a session id is present, use it. Otherwise try and request a token
 ))
 #+end_src
 
-* YAML
-#+begin_src sh :results verbatim
-yq e -n '.systems.name = "cat", .systems.type = "sfdc"'
-#+end_src
-
-#+begin_src sh :results verbatim
-yq eval -P --null-input '.systems |= .systems.a.b = "cat" | .x = "frog"'
-#+end_src
-
-
 #+begin_src emacs-lisp :results verbatim :wrap src json 
   (request (concatenate 'string sfdc.loginurl "/services/data")
   :parser 'json-read
@@ -286,20 +276,8 @@ yq eval -P --null-input '.systems |= .systems.a.b = "cat" | .x = "frog"'
 #+end_src
 
 
-* Login URL (Any restrictions on steam with GetLoginPrevention??)
+* Login URL
 #+NAME: credentialedLogin
 #+begin_src sh :var hostname=getLoginURL username=getSFDCUserName password=getSFDCPassword :result silent
 curl -d un=$username -d pw=$password -X POST $hostname -si | rg -oP 'Location: \K.*'
 #+end_src
-
-(defun sugestion-for (targ)
-  (request
-   (format "https://api.datamuse.com/sug?s=%s" targ)
-   :parser 'json-read
-   :success (function*
-             (lambda (&amp;key data &amp;allow-other-keys)
-               (let* ((candidates
-                       (mapcar (lambda (i)
-                                 (cons (cdr (car i)) nil)) data)))
-                 (insert (format "\n =&gt; %s "
-                                 candidates)))))))
